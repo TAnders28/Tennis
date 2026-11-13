@@ -105,6 +105,14 @@ def SimBets(frame, model, entry, fill, fee_name, threshold):
     return bets
 
 
+def StrictSubset(bets, frame, max_age_s=180):
+    ages = frame.set_index("match_key")["t60_age_s"]
+    keep = bets["match_key"].map(ages).le(max_age_s)
+    strict = bets[keep & (bets["entry"] == "t60")].copy()
+    strict["entry"] = "t60_strict3min"
+    return strict
+
+
 def Summary(bets):
     rows = []
     keys = ["tour", "level", "split", "model", "entry", "fill", "fee_basis", "threshold"]
@@ -146,6 +154,7 @@ def Main(argv=None):
                     for threshold in THRESHOLDS:
                         all_bets.append(SimBets(frame, model, entry, fill, fee_name, threshold))
     bets = pd.concat(all_bets, ignore_index=True)
+    bets = pd.concat([bets, StrictSubset(bets, frame)], ignore_index=True)
     bets.to_parquet(OUT_DIR / "bets.parquet", index=False)
     summary = Summary(bets)
     summary.to_csv(OUT_DIR / "summary.csv", index=False)

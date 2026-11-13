@@ -7,7 +7,9 @@ One book per event: the fetched market's yes side prices player A; buying B cost
 1 - yes_bid(A) (the no side of the same book).
 
 Quotes (1-min candles; yes_bid/yes_ask at minute close, no size):
-  T-60  entry quote: last candle closing <= T-60m, age <= 3 min, 0 < bid < ask < 1
+  T-60  entry quote: last candle closing <= T-60m, age <= 30 min, 0 < bid < ask < 1
+        (1-min candles are sparse - only minutes with activity - so a 3-min limit drops ~30% of
+        events; the age is stored and KalshiReality reports the strict <= 3 min subset too)
   T-5   closing reference: same rule at T-5m
   early earliest candle in [T-24h, T-3h] with both sides (an "opening-ish" price; hourly list if present, else 1-min)
 T = Kalshi milestone start_date = the SCHEDULED start. Tennis starts slip ("followed by"),
@@ -35,7 +37,7 @@ KALSHI_DIR = REPO_ROOT / "data" / "raw" / "kalshi"
 OUT_ROOT = REPO_ROOT / "data" / "backtest"
 SERIES_BY_TOUR = {"atp": [("KXATPMATCH", "tour"), ("KXATPCHALLENGERMATCH", "challenger")],
                   "wta": [("KXWTAMATCH", "tour"), ("KXWTACHALLENGERMATCH", "challenger")]}
-STALE_S = 180
+STALE_S = 1800  # candles exist only for minutes with activity; the last candle's bid/ask is the standing quote
 INPLAY_JUMP = 0.25
 
 
