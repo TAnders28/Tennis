@@ -1,0 +1,31 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+.venv/
+venv/
+
+# Environment files
+.env
+.env.*
+
+# VS Code settings
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+/logs/
+
+# Data (raw pulls, processed tables, backtest outputs, prediction logs - keep out of git)
+/data/
+*.json
+*.jsonl
+*.parquet
+!/examples/
+!/examples/*.json

@@ -1,0 +1,8 @@
+# Direct dependencies (pin exact versions in requirements.lock.txt)
+pandas
+numpy
+scipy
+pyarrow
+requests
+openpyxl
+xlrd
