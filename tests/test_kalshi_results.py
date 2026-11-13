@@ -14,6 +14,8 @@ class KalshiResultsTest(unittest.TestCase):
         self.assertEqual(RoundToStage("Semifinal"), "SF")
         self.assertEqual(RoundToStage("Final"), "F")
         self.assertEqual(RoundToStage("Qualification Round 2"), "Q2")
+        self.assertEqual(RoundToStage("Qualification Final"), "Q3")
+        self.assertEqual(RoundToStage("1/16 Finals"), "R32")
 
     def test_synthetic_id_stable_negative(self):
         self.assertEqual(SyntheticId("atp", "New Player"), SyntheticId("atp", "new  player"))

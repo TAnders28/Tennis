@@ -60,6 +60,11 @@ def Milestones():
 
 def RoundToStage(text):
     t = str(text or "").lower()
+    for key, code in (("1/32", "R64"), ("1/16", "R32"), ("1/8", "R16")):
+        if key in t:
+            return code
+    if "qualif" in t and "final" in t:
+        return "Q3"
     if "qualif" in t:
         digits = [c for c in t if c.isdigit()]
         return f"Q{digits[-1] if digits else 1}"
@@ -137,7 +142,7 @@ def BuildKalshiRows(tour, sackmann, since="2026-05-20", until=None):
             details = (meta or {}).get("details") or {}
             competition = details.get("tournament_name") or ""
             round_code = RoundToStage(details.get("round"))
-            surface, _ = surfaces.Get(competition)
+            surface, surface_source = surfaces.Get(competition)
             lvl = "tour_qual" if (level == "tour" and round_code.startswith("Q")) else level
             best_of = 5 if (tour == "atp" and level == "tour" and not round_code.startswith("Q")
                             and any(s in competition.lower() for s in SLAMS)) else 3
@@ -147,7 +152,8 @@ def BuildKalshiRows(tour, sackmann, since="2026-05-20", until=None):
             rows.append({"match_key": f"{tour}:kalshi:{ticker}", "tour": tour, "season": day.year, "tourney_id": f"kalshi:{competition}",
                          "tourney_name": competition, "tourney_level": "K", "level_tag": lvl,
                          "tourney_date": int(day.strftime("%Y%m%d")), "date": pd.Timestamp(day), "stage": STAGE.get(round_code, UNKNOWN_STAGE),
-                         "round": round_code, "surface": surface, "surface_norm": surface, "best_of": best_of, "draw_size": np.nan,
+                         "round": round_code, "surface": surface, "surface_source": surface_source,
+                         "surface_unknown": surface_source == "guess_default_hard", "surface_norm": surface, "best_of": best_of, "draw_size": np.nan,
                          "winner_id": int(w_id), "winner_name": win_m["yes_sub_title"], "loser_id": int(l_id),
                          "loser_name": lose_m["yes_sub_title"], "winner_rank": np.nan, "loser_rank": np.nan, "score": "",
                          "is_ret": False, "file_kind": "kalshi", "match_num": 0, "event_ticker": ticker,
@@ -200,6 +206,9 @@ def Main(argv=None):
     if len(rows):
         rows["month"] = rows["date"].dt.strftime("%Y-%m")
         print(rows.groupby(["month", "level_tag"]).size().unstack(fill_value=0).to_string())
+        print(rows.groupby(["level_tag", "surface_source"]).size().unstack(fill_value=0).to_string())
+        guessed = rows.loc[rows.surface_unknown, "tourney_name"].value_counts()
+        print("tournaments with surface guessed (flagged surface_unknown):", guessed.to_dict())
         print("rows with a new player:", int((rows.winner_new | rows.loser_new).sum()), "last date:", rows["date"].max().date())
 
 

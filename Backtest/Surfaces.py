@@ -9,7 +9,9 @@ from __future__ import annotations
 import re
 
 MANUAL = {"atp finals": "Hard", "world tour finals": "Hard", "wta finals": "Hard", "next gen": "Hard", "davis cup": "Hard",
-          "billie jean king": "Hard", "united cup": "Hard", "laver cup": "Hard"}
+          "billie jean king": "Hard", "united cup": "Hard", "laver cup": "Hard",
+          "us open men": "Hard", "us open women": "Hard", "french open": "Clay", "roland garros": "Clay", "wimbledon": "Grass",
+          "australian open": "Hard"}
 DROP = {"atp", "wta", "challenger", "open", "championships", "international", "men", "women", "singles", "the", "de", "of",
         "tour", "masters", "125", "250", "500", "1000", "cup", "presented", "by"}
 

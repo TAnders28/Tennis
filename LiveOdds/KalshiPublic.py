@@ -67,7 +67,8 @@ class KalshiPublic:
         starts = {}
         for item in rows:
             for ticker in set((item.get("primary_event_tickers") or []) + (item.get("related_event_tickers") or [])):
-                starts[ticker] = {"start_date": item.get("start_date"), "details": item.get("details") or {}, "title": item.get("title")}
+                starts[ticker] = {"start_date": item.get("start_date"), "details": item.get("details") or {}, "title": item.get("title"),
+                                  "milestone_id": item.get("id")}
         return starts
 
     def Slate(self, series_list=None, since_iso=None):
@@ -86,4 +87,6 @@ class KalshiPublic:
             event["start"] = meta.get("start_date") or (event["markets"][0].get("occurrence_datetime") if event["markets"] else None)
             event["start_source"] = "milestone" if meta else "occurrence_datetime"
             event["details"] = meta.get("details", {})
+            event["milestone_id"] = meta.get("milestone_id")
+            event["title"] = meta.get("title")
         return events

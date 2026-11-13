@@ -53,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1          # (re)build .v
 - Splits: tune 2010-2019, validation 2020-2022, holdout 2023-2025 (untouched by the search), forward 2026. Rank configs by worst season; report how many configs were tried.
 - **Default PASS.** PredictDay shows BET only when a quote with size exists, edge > 0 after fees, both players are rated, and ratings are fresh (last result within 14 days).
 - Fee for edge math: **ask + 0.02** per $1 contract (Tim's estimate; not a verified fee). Kalshi's verified taker fee `0.07*p*(1-p)` is reported alongside where Kalshi prices are used.
-- Live: action is **PASS** unless the in-play model is validated on holdout AND the quote is qualified AND price/state are fresh (<= 45 s) AND edge > 0. No live score feed is wired in yet, so live is PASS by construction.
+- Live: action is **PASS** unless the in-play model is validated on holdout AND the quote is qualified AND price/state are fresh (<= 45 s) AND edge > 0. Live score: Kalshi public live_data endpoint (LiveOdds/LiveScore.py; no source timestamp, so freshness is judged on fetch time). The Markov model is validated on the Grand Slam holdout only, so non-slam levels PASS with 'live model unvalidated at this level'.
 - Kalshi quotes carry no source timestamp: log `fetched_at` (our clock, UTC) and `price_time = null`. Robinhood-vs-Kalshi price differences are unmeasured.
 - Prediction log `data/predictions/<season>.jsonl` is append-only; rows are written only before the scheduled start; `--dry-run` never appends.
 - Do not place orders or wagers from this repo. No cloud agents. No GitHub remote yet; **push only when Tim explicitly says OK.** Local commits are fine.
