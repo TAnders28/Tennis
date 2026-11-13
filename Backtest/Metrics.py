@@ -1,4 +1,4 @@
-r"""Scoring helpers: log loss, Brier, accuracy, reliability tables, match-level bootstrap."""
+"""Scoring helpers: log loss, Brier, accuracy, reliability tables, match-level bootstrap."""
 from __future__ import annotations
 
 import numpy as np
@@ -53,8 +53,12 @@ def Ece(p, y, bins=10):
     return float(sum(r["n"] * abs(r["mean_pred"] - r["observed"]) for r in rows) / total) if total else float("nan")
 
 
-def ClusterBootstrap(values, clusters, stat=np.mean, reps=1000, seed=7):
-    """Match-level (cluster) bootstrap CI: resample whole matches, not individual points."""
+def ClusterBootstrap(values, clusters, stat=np.mean, reps=1000, seed=7, percentiles=(2.5, 97.5)):
+    """Match-level (cluster) bootstrap CI: resample whole matches, not individual points.
+
+    `percentiles` defaults to (2.5, 97.5) — a 95% interval — so existing callers stay valid.
+    Pass (5, 95) for a 90% interval.
+    """
     values = np.asarray(values, dtype=float)
     clusters = np.asarray(clusters)
     unique, inverse = np.unique(clusters, return_inverse=True)
@@ -65,10 +69,30 @@ def ClusterBootstrap(values, clusters, stat=np.mean, reps=1000, seed=7):
     for _ in range(reps):
         pick = rng.integers(0, len(unique), len(unique))
         out.append(sums[pick].sum() / counts[pick].sum())
-    return float(np.percentile(out, 2.5)), float(np.percentile(out, 97.5))
+    return tuple(float(np.percentile(out, p)) for p in percentiles)
 
 
 def NaiveCi(values):
     values = np.asarray(values, dtype=float)
     se = values.std(ddof=1) / np.sqrt(len(values))
     return float(values.mean() - 1.96 * se), float(values.mean() + 1.96 * se)
+
+
+def LogLossBits(p, y):
+    """Per-row Ignorance in bits: -log2 of the probability on the observed side."""
+    p = np.clip(np.asarray(p, dtype=float), EPS, 1.0 - EPS)
+    y = np.asarray(y, dtype=float)
+    return -(y * np.log2(p) + (1.0 - y) * np.log2(1.0 - p))
+
+
+def MeanCi(values, reps=2000, seed=7, ci=90):
+    """IID bootstrap CI for the mean. `ci` is the central interval (90 -> 5th/95th)."""
+    values = np.asarray(values, dtype=float)
+    values = values[np.isfinite(values)]
+    if len(values) == 0:
+        return float("nan"), float("nan"), float("nan")
+    lo_p = (100.0 - ci) / 2.0
+    hi_p = 100.0 - lo_p
+    rng = np.random.default_rng(seed)
+    means = values[rng.integers(0, len(values), size=(reps, len(values)))].mean(axis=1)
+    return float(values.mean()), float(np.percentile(means, lo_p)), float(np.percentile(means, hi_p))
