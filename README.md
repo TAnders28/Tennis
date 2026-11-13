@@ -32,6 +32,21 @@ Python 3.14 (`E:\Installs\Python314`), binary wheels only (no compiler on this P
 - **tennis-data.co.uk** - free for private individuals, not for bots/scrapers/AI. Scripted requests get HTTP 403,
   so files are downloaded by hand into `data/raw/tennis_data/<tour>/<year>.xlsx` (see `DataPull/PullTennisData.py`).
 
+### Recent results (June 2026 onward): Kalshi settled markets
+
+The Sackmann archive mirror stops in early June 2026. From then on, results come from **Kalshi settled
+tennis match markets** (`Backtest/KalshiResults.py`): public, read-only trade API
+(`api.elections.kalshi.com/trade-api/v2`, no account, no orders), series KXATPMATCH, KXWTAMATCH,
+KXATPCHALLENGERMATCH, KXWTACHALLENGERMATCH. The winner is the market that settled "yes". Dates and
+rounds come from Kalshi milestones. The data is Kalshi market data under Kalshi's terms of service
+(public API, personal/research use; no redistribution of raw dumps). Raw files live in `data/raw/kalshi/` (gitignored).
+Limits: these rows have no serve/return stats, so only Elo updates and serve/return stays frozen at early
+June 2026. ITF/Futures are not covered (no Kalshi market). Events that never started (no yes/no
+pair) are dropped. Players unknown to Sackmann get a synthetic negative id and a level default
+rating (25th percentile of 2026 H1 Elo at that level). PredictDay passes them until they have 5 rated matches.
+Checked 2026-11-13: I found no public, licensed GitHub mirror of Sackmann with 2026 H2 files.
+tennis-data.co.uk is manual-download only (its ToS forbid bots).
+
 ## Outputs
 
 Backtest outputs go to `data/backtest/` (gitignored). Finished reports go to `E:\AgentDocs\Tennibot\<date>_<slug>\`.

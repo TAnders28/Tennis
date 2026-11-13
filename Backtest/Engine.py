@@ -1,4 +1,4 @@
-r"""Leak-free chronological walk over matches (see Backtest.LoadMatches for the ordering).
+﻿r"""Leak-free chronological walk over matches (see Backtest.LoadMatches for the ordering).
 
 For each group (same tourney_date + round stage):
   1. every match in the group is predicted from the frozen pre-group state;
@@ -12,7 +12,7 @@ import math
 import numpy as np
 import pandas as pd
 
-from Backtest.Elo import EloParams, SurfaceElo
+from Backtest.Elo import SURFACES, EloParams, SurfaceElo
 from Backtest.Markov import MatchProbTable
 from Backtest.ServeReturn import ServeReturn, ServeReturnParams
 
@@ -56,7 +56,7 @@ def _Columns(frame):
 
 
 def RunModels(frame: pd.DataFrame, elo_params: EloParams | None = None, sr_params: ServeReturnParams | None = None,
-              tour="atp", record_state=False, stop_before_group=None):
+              tour="atp", record_state=False, stop_before_group=None, seed_ratings=None):
     """Return a dict of numpy arrays aligned with `frame` rows: p_elo, p_sr (winner's pre-match probability),
     p_serve_w / p_serve_l (SR model), and optionally pre-match Elo ratings. Also returns the final model objects.
     `stop_before_group`: stop (without applying) at this group id - used by PredictDay and the leak test."""
@@ -64,6 +64,11 @@ def RunModels(frame: pd.DataFrame, elo_params: EloParams | None = None, sr_param
     n = len(frame)
     elo = SurfaceElo(elo_params) if elo_params else None
     sr = ServeReturn(sr_params, tour) if sr_params else None
+    if elo and seed_ratings:  # starting ratings for players new to the data (KalshiResults.NewPlayerSeeds)
+        for pid, rating in seed_ratings.items():
+            elo.rating[pid] = rating
+            for s in SURFACES:
+                elo.surface_rating[(pid, s)] = rating
     table = SharedTable() if sr else None
     p_elo = np.full(n, np.nan)
     p_sr = np.full(n, np.nan)

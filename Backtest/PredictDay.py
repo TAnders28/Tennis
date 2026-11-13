@@ -4,13 +4,18 @@ r"""PredictDay: pre-match fair values for one ET date's Kalshi tennis slate. Def
   .venv\Scripts\python.exe -m Backtest.PredictDay --date 2026-11-13 --out-dir E:\AgentDocs\Tennibot\<folder>
 
 Ratings: frozen params (Backtest.FrozenParams), replayed over every Sackmann match with
-tourney_date < --date. Slate + prices: Kalshi public API (read-only; KXATPMATCH, KXWTAMATCH,
+tourney_date < --date, then Kalshi settled-market results (Backtest.KalshiResults; Elo only, the
+serve/return model stays frozen at the last Sackmann result) with ET match day < --date. Slate + prices: Kalshi public API (read-only; KXATPMATCH, KXWTAMATCH,
 challenger series); start times from Kalshi milestones (scheduled, ET shown). Fair value is the
 model probability as $0.xx to win $1. Edge = model_prob - yes_ask - 0.02 (Tim's estimate),
 with Kalshi's verified taker fee 0.07*p*(1-p) shown alongside.
 
 Action is BET only if ALL hold: quote has ask and size, edge > 0 (Tim's fee), both players
 known to the ratings, and the ratings are fresh (last result within 14 days of --date).
+Both players also need >= MIN_MATCHES rated matches (new players get a level default and PASS).
+Finally MARKET_EDGE_VALIDATED gates everything: the Kalshi-reality backtest found no edge vs
+Kalshi prices, so it is False and every row is PASS; rows that clear every other check are marked
+would_bet=True ("candidate") so they can be tracked. Do not flip it without a new holdout result.
 Otherwise PASS with the first failed check as the reason. Recommendations only; no orders.
 Two tables: "Most likely to win" (ranked by win probability) and "Best value" (ranked by edge).
 Without --dry-run, one row per match is appended to data/predictions/<season>.jsonl (only
@@ -30,6 +35,7 @@ import pandas as pd
 from Backtest.Elo import EloParams
 from Backtest.Engine import Blend, RunModels, SharedTable
 from Backtest.FrozenParams import FROZEN, MODEL_VERSION
+from Backtest.KalshiResults import BuildKalshiRows, Combine, NewPlayerSeeds
 from Backtest.LoadMatches import LoadMatches
 from Backtest.NameMatch import NameIndex
 from Backtest.Odds import KalshiFee, TIM_FEE
@@ -40,23 +46,38 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PRED_DIR = REPO_ROOT / "data" / "predictions"
 ET = ZoneInfo("America/New_York")
 FRESH_DAYS = 14
+MIN_MATCHES = 5
+MARKET_EDGE_VALIDATED = False  # Kalshi-reality backtest 2025-06..2026-06: no edge vs Kalshi prices
 
 
 def BuildState(tour, target_date):
-    frame = LoadMatches(tour)
-    frame = frame[frame["date"] < pd.Timestamp(target_date)].reset_index(drop=True)
+    sackmann = LoadMatches(tour)
+    sackmann = sackmann[sackmann["date"] < pd.Timestamp(target_date)].reset_index(drop=True)
     params = FROZEN[tour]
-    result = RunModels(frame, EloParams(**params["elo"]), ServeReturnParams(**params["sr"]), tour)
+    elo_p, sr_p = EloParams(**params["elo"]), ServeReturnParams(**params["sr"])
+    kalshi, cover = BuildKalshiRows(tour, sackmann, until=(target_date - dt.timedelta(days=1)).isoformat())
+    seeds, defaults = {}, {}
+    if len(kalshi):
+        pre = RunModels(sackmann, elo_p, None, tour)
+        seeds, defaults = NewPlayerSeeds(pre["elo"], sackmann, kalshi)
+    frame = Combine(sackmann, kalshi)
+    frame = frame[frame["date"] < pd.Timestamp(target_date)].reset_index(drop=True)
+    result = RunModels(frame, elo_p, sr_p, tour, seed_ratings=seeds)
     names = pd.concat([frame[["winner_id", "winner_name", "date"]].set_axis(["i", "n", "d"], axis=1),
                        frame[["loser_id", "loser_name", "date"]].set_axis(["i", "n", "d"], axis=1)])
     last_seen = names.groupby("i")["d"].max()
+    n_matches = names.groupby("i").size()
     index = NameIndex(names.drop_duplicates("i")[["i", "n"]].itertuples(index=False, name=None))
     return {"elo": result["elo"], "sr": result["sr"], "index": index, "last_date": frame["date"].max().date(),
+            "sackmann_last_date": sackmann["date"].max().date(), "kalshi_cover": cover, "new_defaults": defaults,
+            "seeds": set(seeds), "n_matches": n_matches,
             "surfaces": SurfaceLookup(frame), "weight": params["blend_weight_sr"], "last_seen": last_seen}
 
 
-def Resolve(index, name):
+def Resolve(index, name, last_seen=None):
     ids = index.LookupFull(name)
+    if len(ids) > 1 and last_seen is not None:  # same name twice: take the most recently active id
+        return max(ids, key=lambda i: last_seen.get(i, pd.Timestamp(0)))
     return next(iter(ids)) if len(ids) == 1 else None
 
 
@@ -80,7 +101,9 @@ def ScoreEvent(event_ticker, event, states, target_date):
     competition = event["details"].get("tournament_name") or a.get("rules") or ""
     surface, surface_source = state["surfaces"].Get(competition)
     best_of = 5 if any(k in competition.lower() for k in ("australian open", "french open", "roland", "wimbledon", "us open")) and tour == "atp" and event["level"] == "tour" else 3
-    id_a, id_b = Resolve(state["index"], a["player"]), Resolve(state["index"], b["player"])
+    id_a, id_b = Resolve(state["index"], a["player"], state["last_seen"]), Resolve(state["index"], b["player"], state["last_seen"])
+    n_a = int(state["n_matches"].get(id_a, 0)) if id_a is not None else 0
+    n_b = int(state["n_matches"].get(id_b, 0)) if id_b is not None else 0
     known = id_a is not None and id_b is not None
     fresh = (target_date - state["last_date"]).days <= FRESH_DAYS
     row = {"event_ticker": event_ticker, "tour": tour, "level": event["level"], "start_utc": start.isoformat(),
@@ -89,7 +112,8 @@ def ScoreEvent(event_ticker, event, states, target_date):
            "surface_source": surface_source, "best_of": best_of, "player_a": a["player"], "player_b": b["player"],
            "ask_a": a["yes_ask"], "ask_b": b["yes_ask"], "ask_size_a": a["yes_ask_size"], "ask_size_b": b["yes_ask_size"],
            "bid_a": a["yes_bid"], "bid_b": b["yes_bid"], "fetched_at": a["fetched_at"], "price_time": None,
-           "ticker_a": a["ticker"], "ticker_b": b["ticker"], "ratings_last_date": str(state["last_date"])}
+           "ticker_a": a["ticker"], "ticker_b": b["ticker"], "ratings_last_date": str(state["last_date"]),
+           "n_rated_a": n_a, "n_rated_b": n_b, "new_player": bool({id_a, id_b} & state["seeds"])}
     if known:
         elo = state["elo"]
         ra = elo.Ratings(id_a, surface)
@@ -125,13 +149,20 @@ def ScoreEvent(event_ticker, event, states, target_date):
         else:
             row.update({"value_side": None, "edge": None, "edge_kalshi_fee": None})
             checks.append("no executable ask")
+    if known and min(n_a, n_b) < MIN_MATCHES:
+        checks.append(f"thin history (< {MIN_MATCHES} rated matches; new-player default rating)")
+    row["would_bet"] = not checks and start > dt.datetime.now(dt.timezone.utc) and fresh
+    if not MARKET_EDGE_VALIDATED:
+        checks.append("no validated edge vs Kalshi in backtest (default PASS kept)")
     if start <= dt.datetime.now(dt.timezone.utc):
         checks.insert(0, "already started (scheduled start passed; price may be in-play)")
     if not fresh:
         checks.insert(0, f"ratings stale (results end {state['last_date']})")
     row["action"] = "PASS" if checks else "BET"
     row["reason"] = checks[0] if checks else "edge > 0, quote has size, ratings fresh"
-    row["confidence"] = Confidence(row.get("fav_prob") or 0.5, fresh, known)
+    if row["would_bet"]:
+        row["reason"] = "candidate: edge > 0 after fee, size, ratings fresh; PASS because no validated edge vs Kalshi"
+    row["confidence"] = Confidence(row.get("fav_prob") or 0.5, fresh, known and min(n_a, n_b) >= MIN_MATCHES)
     return row
 
 
@@ -139,19 +170,23 @@ def Money(p):
     return "-" if p is None or pd.isna(p) else f"${p:.2f}"
 
 
-def Markdown(rows, target_date, last_dates):
+def Markdown(all_rows, target_date, last_dates):
+    now = dt.datetime.now(dt.timezone.utc)
+    rows = [r for r in all_rows if dt.datetime.fromisoformat(r["start_utc"]) > now]
+    started = len(all_rows) - len(rows)
     lines = [f"# Tennis PredictDay {target_date} (times ET; Kalshi scheduled starts)", "",
              f"Ratings use results through " + ", ".join(f"{k.upper()} {v}" for k, v in last_dates.items()) + f". Model {MODEL_VERSION}. Fair value = model probability as $ to win $1. "
-             "Edge uses Tim's $0.02 fee estimate (Kalshi verified fee 0.07*p*(1-p) in the edge_kalshi column). Default PASS. No orders.", ""]
+             "Edge uses Tim's $0.02 fee estimate (Kalshi verified fee 0.07*p*(1-p) in the edge_kalshi column). Default PASS. No orders.", "",
+             f"Matches not yet started at {dt.datetime.now(ET):%H:%M} ET: {len(rows)} ({started} on today's Kalshi slate already started, excluded).", ""]
     known = [r for r in rows if r.get("fav_prob") is not None]
     lines += ["## Most likely to win", "", "| start ET | match | tour/level | surface | Elo A/B (surf) | ask A/B | pick | model prob | fair value | confidence |",
-              "|---|---|---|---|---|---|---|---|---|---|"]
+              "|---|---|---|---|---|---|---|---|---|---|"]  # Elo marked "new" when a player started from the level default
     for r in sorted(known, key=lambda r: -r["fav_prob"]):
         lines.append(f"| {r['start_et']} | {r['player_a']} vs {r['player_b']} | {r['tour']}/{r['level']} | {r['surface']}"
                      f"{'*' if r['surface_source'] == 'guess_default_hard' else ''} | {r['elo_a']}/{r['elo_b']} ({r['elo_surf_a']}/{r['elo_surf_b']}) | "
                      f"{Money(r['ask_a'])}/{Money(r['ask_b'])} | {r['fav']} | {r['fav_prob']:.1%} | {Money(r['fav_prob'])} | {r['confidence']} |")
     lines += ["", "## Best value (ranked by edge; PASS unless every check holds)", "",
-              "| start ET | match | value side | model prob | ask | size | edge (Tim $0.02) | edge (Kalshi fee) | action | reason |",
+              "| start ET | match | value side | model prob | ask | size | edge (Tim $0.02 est) | edge (Kalshi fee 0.07p(1-p)) | action | reason |",
               "|---|---|---|---|---|---|---|---|---|---|"]
     for r in sorted(rows, key=lambda r: -(r.get("edge") if r.get("edge") is not None else -9)):
         edge = "-" if r.get("edge") is None else f"{r['edge']:+.3f}"
@@ -203,6 +238,7 @@ def Main(argv=None):
                           "market_price": r.get("value_ask"), "price_time": r["price_time"], "fetched_at": r["fetched_at"],
                           "source": "kalshi_public", "model_version": MODEL_VERSION, "action": r["action"], "reason": r["reason"],
                           "p_a": r.get("p_a"), "player_a": r["player_a"], "player_b": r["player_b"], "fee_basis": "tim_est_0.02"}
+                record["would_bet"] = bool(r.get("would_bet"))
                 handle.write(json.dumps(record) + "\n")
                 written += 1
         print(f"\nappended {written} rows to {path}")
