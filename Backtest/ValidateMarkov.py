@@ -103,13 +103,26 @@ def LoadSlam(year, slam):
     return matches, points
 
 
+def EventTour(match_num):
+    """1xxx / MSxxx = men's singles, 2xxx / WSxxx = women's singles, anything else skipped."""
+    text = str(match_num).strip().upper()
+    if text.startswith("MS"):
+        return "atp"
+    if text.startswith("WS"):
+        return "wta"
+    try:
+        num = int(float(text))
+    except ValueError:
+        return None
+    return "atp" if 1000 <= num < 2000 else ("wta" if 2000 <= num < 3000 else None)
+
+
 def JoinPrematch(year, slam, matches, preds_by_tour, index_by_tour):
     joined = []
     for row in matches.itertuples(index=False):
-        num = int(row.match_num)
-        if num >= 3000:
+        tour = EventTour(row.match_num)
+        if tour is None:
             continue  # doubles / mixed / juniors
-        tour = "atp" if num < 2000 else "wta"
         preds = preds_by_tour[tour]
         slam_rows = preds[(preds["season"] == year) & (preds["tourney_level"] == "G")
                           & preds["tourney_name"].str.lower().str.contains(SLAM_NAMES[slam].lower()[:9])]
@@ -260,7 +273,7 @@ def Main(argv=None):
     points["phase"] = np.where(points["point_index"] == 0, "pre_first_point",
                                np.where(points["in_tb"], "tiebreak", "set_" + points["set_no"].astype(str)))
     points.to_parquet(OUT_DIR / "points_scored.parquet", index=False)
-    columns = [c for c in points.columns if c.startswith("p_m")]
+    columns = [c for c in points.columns if c.startswith("p_m") and not c.startswith("p_markov")]
     tune = points[points["split"] == "tune"]
     tune_ll = {c: LogLoss(tune[c].to_numpy(), tune["y"].to_numpy()) for c in columns}
     chosen = min(tune_ll, key=tune_ll.get)

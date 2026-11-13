@@ -9,7 +9,7 @@ One book per event: the fetched market's yes side prices player A; buying B cost
 Quotes (1-min candles; yes_bid/yes_ask at minute close, no size):
   T-60  entry quote: last candle closing <= T-60m, age <= 3 min, 0 < bid < ask < 1
   T-5   closing reference: same rule at T-5m
-  early earliest hourly candle in [T-24h, T-3h] with both sides (an "opening-ish" price)
+  early earliest candle in [T-24h, T-3h] with both sides (an "opening-ish" price; hourly list if present, else 1-min)
 T = Kalshi milestone start_date = the SCHEDULED start. Tennis starts slip ("followed by"),
 so T-60 can be several hours before the real first ball; and if a match started EARLY the
 quote could be in-play. Events whose mid moved > 0.25 between T-60 and T-5 are flagged
@@ -123,7 +123,7 @@ def BuildQuotes(tour, preds):
             start_ts = start.timestamp()
             q60 = QuoteAt(payload.get("minute", []), start_ts - 3600)
             q5 = QuoteAt(payload.get("minute", []), start_ts - 300)
-            early = EarlyQuote(payload.get("hourly", []), start_ts)
+            early = EarlyQuote(payload.get("hourly") or payload.get("minute", []), start_ts)
             row = {**base, "row": int(i), "match_key": preds["match_key"].iat[i], "id_a": id_a,
                    "a_won": int(preds["winner_id"].iat[i]) == id_a, "kalshi_result_a": market_a.get("result"),
                    "candidates": len(found)}

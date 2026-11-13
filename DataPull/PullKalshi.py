@@ -121,7 +121,7 @@ def LoadMarkets(series):
 def PullCandles(session, series_list, date_from, date_to, hours_before):
     """One market per event (the first ticker): its yes side prices player A, and its no side
     (no_ask = 1 - yes_bid) prices player B, so a single book covers both sides.
-    Two requests per event: 1-minute candles T-180m..T+5m and hourly candles T-hours_before..T-3h,
+    One request per event: 1-minute candles T-hours_before..T+5m (older files may also carry an hourly list),
     where T = the Kalshi milestone start_date (scheduled start; tennis starts can slip later)."""
     done = 0
     starts = LoadStartTimes()
@@ -140,10 +140,7 @@ def PullCandles(session, series_list, date_from, date_to, hours_before):
             if out_path.exists():
                 continue
             opened = ParseTs(market["open_time"])
-            windows = {
-                "minute": (occurrence - dt.timedelta(minutes=180), occurrence + dt.timedelta(minutes=5), 1),
-                "hourly": (max(opened, occurrence - dt.timedelta(hours=hours_before)), occurrence - dt.timedelta(hours=3), 60),
-            }
+            windows = {"minute": (occurrence - dt.timedelta(hours=hours_before), occurrence + dt.timedelta(minutes=5), 1)}
             payload = {"event_ticker": event_ticker, "ticker": market["ticker"], "series": series,
                        "scheduled_start": occurrence.isoformat(), "start_source": "milestone" if event_ticker in starts else "occurrence_datetime",
                        "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")}
@@ -165,7 +162,7 @@ def PullCandles(session, series_list, date_from, date_to, hours_before):
             WriteJsonAtomic(out_path, payload)
             done += 1
             if done % 250 == 0:
-                print(f"  events {done:,} ({series}) last {event_ticker}", flush=True)
+                print(f"  events {done:,} ({series}) last {event_ticker} throttled={session.throttled}", flush=True)
     print(f"events fetched: {done:,}")
 
 
@@ -187,7 +184,7 @@ def Main(argv=None):
     parser.add_argument("--milestones", action="store_true", help="pull scheduled start times (run before --candles)")
     parser.add_argument("--from", dest="date_from", default="2025-06-01")
     parser.add_argument("--to", dest="date_to", default=dt.date.today().isoformat())
-    parser.add_argument("--hours-before", type=float, default=36.0)
+    parser.add_argument("--hours-before", type=float, default=24.0)
     parser.add_argument("--interval", type=float, default=0.15, help="seconds between requests (Kalshi public tier allows more)")
     args = parser.parse_args(argv)
     session = PoliteSession(min_interval_s=args.interval)

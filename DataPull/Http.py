@@ -31,6 +31,7 @@ class PoliteSession:
         self.max_retries = max_retries
         self.timeout_s = timeout_s
         self._last_request = 0.0
+        self.throttled = 0
 
     def Get(self, url: str, params: dict | None = None) -> requests.Response:
         attempt = 0
@@ -57,7 +58,8 @@ class PoliteSession:
                 response.raise_for_status()
             backoff_s = min(60.0, 2.0 ** attempt)
             if response is not None and response.status_code == 429:
-                backoff_s = max(backoff_s, float(response.headers.get("Retry-After", 10)))
+                self.throttled += 1
+                backoff_s = max(1.0 * attempt, float(response.headers.get("Retry-After", 0) or 0))
             time.sleep(backoff_s)
 
 
