@@ -32,6 +32,7 @@ class PoliteSession:
         self.timeout_s = timeout_s
         self._last_request = 0.0
         self.throttled = 0
+        self.throttled_streak = 0
 
     def Get(self, url: str, params: dict | None = None) -> requests.Response:
         attempt = 0
@@ -42,6 +43,8 @@ class PoliteSession:
             self._last_request = time.monotonic()
             try:
                 response = self.session.get(url, params=params, timeout=self.timeout_s)
+                if response.status_code != 429:
+                    self.throttled_streak = 0
             except requests.RequestException:
                 response = None
             if response is not None:
@@ -51,6 +54,12 @@ class PoliteSession:
                     return response
                 if response.status_code < 400:
                     return response
+                if response.status_code == 429 and self.throttled_streak < 60:
+                    # rate limited: wait and retry without spending a retry attempt
+                    self.throttled += 1
+                    self.throttled_streak += 1
+                    time.sleep(min(30.0, 1.0 + self.throttled_streak))
+                    continue
             attempt += 1
             if attempt > self.max_retries:
                 if response is None:
