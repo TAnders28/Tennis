@@ -176,6 +176,58 @@ def ExtensionFrame(tour):
     return q[q["name_a"].notna() & q["name_b"].notna()]
 
 
+CAVEATS = [
+    "**No edge vs Kalshi.** The Kalshi T-60 market has lower log loss and Brier than the model at every level and split, and CLV is negative. Treat every series as PASS evidence, not a strategy.",
+    "**Sackmann data is stale.** The Sackmann results archive ends 2026-06-01 (last rows 2026-06-10). After that, ratings are kept current from Kalshi-settled results, which update Elo only; serve/return stays frozen at early June 2026. That period is in the separate `_ext-2026H2` files and is never mixed with the main series.",
+    "**Fills assume unlimited size at the ask.** Kalshi candle history has bid/ask but no size, so every fill assumes the full stake fills at the T-60 ask. That is optimistic for larger stakes.",
+    "Fees: the edges and P&L use Tim's $0.02 estimate (`fee_basis=tim_est_0.02`). Kalshi's verified taker fee 0.07*p*(1-p) is shown as extra columns, never instead.",
+    "Robinhood-vs-Kalshi price differences are unmeasured.",
+    "T-60 is measured from Kalshi's *scheduled* start. Tennis starts slip, so the quote can be hours before first ball. Events whose mid moved > 0.25 between T-60 and T-5 are flagged possibly in-play and dropped.",
+]
+
+
+def WriteMarkdown(meta, cal_dir, bank_dir, date):
+    head = meta["head"]
+    cal = [f"# Tennis calibration ({date}), common format (sports-ops plan section 5a)", "",
+           f"Repo E:\\Tennis\\tennis at HEAD `{head}`. Model `{meta['model_version']}` = frozen surface-Elo + serve/return blend (`tennis_blend_v1`). Parameters were frozen 2026-11-13 from tune 2010-2019 and validation 2020-2022 only; the holdout and forward seasons were never used in any search.",
+           "Leak test: `tests/test_no_lookahead.py` passes at this HEAD (each match is predicted from the state before its date/round group).",
+           "Splits: `holdout` = season 2025 (Jun-Dec, the Kalshi era); `forward` = season 2026 (Jan-Jun 2026). Fixed side player_a = the alphabetically first surname (last name token), never the winner.",
+           "Market = Kalshi T-60 mid of player_a's book (both sides from one book, so de-vigged by construction), on exactly the same matches as the model.",
+           "Levels: tour-level rows use model names `tennis_blend_v1` and `market_kalshi_T60`. Qualifying and Challenger / WTA 125 rows are calibration-only and carry the level in the model name (`...@tour_qual`, `...@challenger`). ITF has no Kalshi markets, so there are no ITF rows.", "",
+           "## Pooled out-of-sample headline (holdout + forward)", "", "| sport | model | N | accuracy | Brier | log loss | ECE |", "|---|---|---|---|---|---|---|"]
+    cal += [f"| {s['sport']} | {s['model']} | {s['n']} | {s['accuracy']:.3f} | {s['brier']:.4f} | {s['log_loss']:.4f} | {s['ece']:.4f} |" for s in meta["cal_main"]]
+    cal += ["", "## Jun-Nov 2026 extension (separate files `*_ext-2026H2.csv`, split `forward`, Elo current from Kalshi results, serve/return frozen)", "",
+            "| sport | model | N | accuracy | Brier | log loss | ECE |", "|---|---|---|---|---|---|---|"]
+    cal += [f"| {s['sport']} | {s['model']} | {s['n']} | {s['accuracy']:.3f} | {s['brier']:.4f} | {s['log_loss']:.4f} | {s['ece']:.4f} |" for s in meta["cal_ext"]]
+    cal += ["", "Per-season rows and the ten 0.1-wide bins are in the CSVs. Empty bins have n=0 and blank mean_pred / obs_rate.", "", "## Caveats", ""] + [f"- {c}" for c in CAVEATS]
+    (cal_dir / f"{date}_calibration.md").write_text("\n".join(cal), encoding="utf-8")
+    bk = [f"# Tennis $10k bankroll ({date}), common format (sports-ops plan sections 3-5)", "",
+          f"Repo HEAD `{head}`, model `{meta['model_version']}`. Price basis `kalshi_T60`: the last 1-min candle at or before T-60 min before the scheduled start, no older than 30 min. The fill is the bet side's ask; P&L uses ask + fee.",
+          "Seasons are calendar years: 2025 = holdout (Jun-Dec), 2026 = forward (Jan-Jun 2026). Rows exist only for game days (days with at least one priced tour-level match); `x` is continuous and skips the offseason. Charts start at each season's first match and end at its last.",
+          "Bets are tour level only (no qualifying, Challenger, WTA 125 or ITF). One side per event (the larger edge). An event qualifies when edge = model - de-vigged mid - 0.02 >= 0.03.",
+          "- `flat100`: $100 per qualifying event, no compounding, stop if equity < $100.",
+          "- `qkelly`: 0.25 x (p - c)/(1 - c) x start-of-day equity with c = ask + 0.02, capped at 2%, compounding; qualifying events where p <= c get no stake.",
+          "- `market_fav`: $100 on the Kalshi favourite in every priced event (reference for the cost of fees).", "",
+          "## Results (main: holdout 2025 + forward Jan-Jun 2026)", "",
+          "| sport | strategy | N bets | staked | final equity | ROI per $ | ROI 90% CI (bootstrap over events) | max drawdown |", "|---|---|---|---|---|---|---|---|"]
+    def Rows(stats):
+        return [f"| {s['sport']} | {s['strategy']} | {s['n_bets']} | ${s['staked']:,.0f} | ${s['final_equity']:,.2f} | {s['roi']:+.1%} | [{s['roi_ci90'][0]:+.1%}, {s['roi_ci90'][1]:+.1%}] | {s['max_drawdown_pct']:.1%} |" for s in stats]
+    bk += Rows(meta["bank_main"])
+    bk += ["", "flat100 ROI with Kalshi's verified fee instead of the $0.02 estimate (extra column, same qualifying set): " +
+           ", ".join(f"{k} {v['roi']:+.1%} (N {v['n']})" for k, v in meta["flat100_kalshi_fee_main"].items() if v["roi"] is not None), "",
+           "## Jun-Nov 2026 extension (separate files `*_ext-2026H2.csv`; Elo current from Kalshi results, serve/return frozen; not mixed with the above)", "",
+           "| sport | strategy | N bets | staked | final equity | ROI per $ | ROI 90% CI | max drawdown |", "|---|---|---|---|---|---|---|---|"]
+    bk += Rows(meta["bank_ext"])
+    bk += ["", "Extension flat100 with Kalshi verified fee: " + ", ".join(f"{k} {v['roi']:+.1%} (N {v['n']})" for k, v in meta["flat100_kalshi_fee_ext"].items() if v["roi"] is not None), "",
+           "## Dropped events", ""]
+    for tour, d in meta["tours"].items():
+        bk.append(f"- {tour.upper()} tour level (main): {d['main_tour_matched_events']} Kalshi events matched to results; {d['main_tour_no_t60']} had no T-60 quote (no price, dropped); "
+                  f"{d['main_tour_inplay_dropped']} were flagged possibly in-play and dropped. Ties and voids: 0 (Kalshi voids never reach the matched set). Extension: {d['ext_rows']} priced rows over all levels, {d['ext_inplay_dropped']} in-play dropped.")
+    bk += ["", "Files: `_bankroll-10k.csv` (equity per game day), `_bankroll-10k_edges.csv` (every priced tour event, qualifying or not; extra columns fee_kalshi_verified, edge_vs_fill_kalshi_fee, pnl_at_flat_stake_kalshi_fee, fav_side_fill, fav_result), and the same two with `_ext-2026H2`. `_stats.json` holds these numbers.",
+           "`price_time` = the T-60 candle's end time (Kalshi's own timestamp). It is a 1-min candle close, not a quote timestamp.", "", "## Caveats", ""] + [f"- {c}" for c in CAVEATS]
+    (bank_dir / f"{date}_bankroll-10k.md").write_text("\n".join(bk), encoding="utf-8")
+
+
 def Main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--date", default="2026-11-13")
@@ -193,7 +245,10 @@ def Main(argv=None):
         sets["main"][tour] = f
         ext, inplay_ext = Prepare(ExtensionFrame(tour))
         sets["ext"][tour] = ext
-        meta["tours"][tour] = {"main_no_t60": int(raw["t60_ask"].isna().sum()), "main_inplay_dropped": inplay,
+        tour_raw = raw[raw["level_tag"] == "tour"]
+        meta["tours"][tour] = {"main_tour_matched_events": int(len(tour_raw)), "main_tour_no_t60": int(tour_raw["t60_ask"].isna().sum()),
+                               "main_tour_inplay_dropped": int((tour_raw["t60_ask"].notna() & tour_raw["possible_inplay"]).sum()),
+                               "main_no_t60": int(raw["t60_ask"].isna().sum()), "main_inplay_dropped": inplay,
                                "ext_inplay_dropped": inplay_ext, "ext_rows": int(len(ext))}
         print(tour, meta["tours"][tour], flush=True)
     for key, suffix in (("main", ""), ("ext", "_ext-2026H2")):
@@ -232,6 +287,7 @@ def Main(argv=None):
             q = e[e["qualifies"]]
             meta.setdefault(f"flat100_kalshi_fee_{key}", {})[e["sport"].iloc[0]] = {
                 "n": int(len(q)), "roi": float(q["pnl_at_flat_stake_kalshi_fee"].sum() / (FLAT * len(q))) if len(q) else None}
+    WriteMarkdown(meta, cal_dir, bank_dir, args.date)
     (bank_dir / f"{args.date}_bankroll-10k_stats.json").write_text(json.dumps(meta, indent=1, default=str), encoding="utf-8")
     print(json.dumps(meta, indent=1, default=str))
 

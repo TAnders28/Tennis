@@ -169,12 +169,13 @@ def PullCandles(session, series_list, date_from, date_to, hours_before):
 def CompactCandle(candle):
     def Close(key):
         block = candle.get(key) or {}
-        value = block.get("close") if isinstance(block, dict) else None
+        # historical endpoint: "close"; live /series/... endpoint: "close_dollars"
+        value = (block.get("close") if block.get("close") not in (None, "") else block.get("close_dollars")) if isinstance(block, dict) else None
         return float(value) if value not in (None, "") else None
     price = candle.get("price") or {}
     return {"end_ts": candle.get("end_period_ts"), "yes_bid": Close("yes_bid"), "yes_ask": Close("yes_ask"),
-            "last": float(price["close"]) if price.get("close") not in (None, "") else None,
-            "volume": float(candle.get("volume") or 0)}
+            "last": float(price.get("close") or price.get("close_dollars")) if (price.get("close") or price.get("close_dollars")) not in (None, "") else None,
+            "volume": float(candle.get("volume") or candle.get("volume_fp") or 0)}
 
 def Main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
