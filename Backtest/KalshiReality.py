@@ -106,7 +106,7 @@ def SimBets(frame, model, entry, fill, fee_name, threshold):
 
 
 def StrictSubset(bets, frame, max_age_s=180):
-    ages = frame.set_index("match_key")["t60_age_s"]
+    ages = frame.groupby("match_key")["t60_age_s"].first()
     keep = bets["match_key"].map(ages).le(max_age_s)
     strict = bets[keep & (bets["entry"] == "t60")].copy()
     strict["entry"] = "t60_strict3min"
