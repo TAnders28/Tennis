@@ -102,7 +102,7 @@ class ContextTest(unittest.TestCase):
         self.assertIsNotNone(ctx["head_to_head"])
         self.assertEqual(ctx["head_to_head"]["home_wins"], 1)
         self.assertEqual(ctx["head_to_head"]["away_wins"], 1)
-        self.assertEqual(ctx["head_to_head"]["through"], "2026-06-01")
+        self.assertEqual(ctx["head_to_head"]["through"], "2026-05-28")  # last meeting, not the file cutoff
         self.assertFalse(ctx["head_to_head"]["complete"])
         blob = " ".join(ctx["notes"])
         self.assertIn("stale", blob.lower())
@@ -123,7 +123,7 @@ class ContextTest(unittest.TestCase):
         self.assertTrue(any("no head-to-head" in n for n in ctx["notes"]))
 
     def test_helpers_on_synthetic_rows(self):
-        self.assertEqual(RecentForm(self.frame, 1)["results"], "LW")
+        self.assertEqual(RecentForm(self.frame, 1)["results"], "WLW")  # all local matches, oldest to newest
         self.assertEqual(RestDays(self.frame, 2, dt.date(2026, 6, 1)), 4)
         h2h = HeadToHead(self.frame, 1, 2)
         self.assertEqual(h2h["meetings"], 2)
