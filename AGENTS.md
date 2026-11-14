@@ -23,6 +23,7 @@ Shared conventions for agents working in this repo (owner: Tennibot). Keep chang
   - `ServeReturnElo.py`, `RunServeReturnElo.py` - prototype Elo-style serve/return ratings (defaults not tuned on holdout)
   - `KalshiLiquidity.py` - tour vs Challenger / WTA 125 liquidity survey (local files by default; `--refresh` is a read-only public API pull)
 - `LiveOdds/` - `KalshiPublic.py` (read-only client), `Report.py` (live JSONL contract for Degen). No orders.
+- `Dashboard/` - `BuildBoard.py` writes the GutCall tennis board (`E:\AgentDocs\Tennibot\_dashboard\board_latest.json` plus a dated copy) from the Kalshi public slate and surface Elo.
 - `tests/` - unittest (leak tests, Markov, odds, names)
 - `data/` - local only (gitignored): raw pulls, processed parquet, backtest outputs, prediction logs
 - `logs/` - job logs (gitignored); `RunJob.ps1` starts a module in the background with a traceable first line
@@ -43,6 +44,8 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1          # (re)build .v
 .venv\Scripts\python.exe -m Backtest.KalshiReality
 .venv\Scripts\python.exe -m Backtest.TennisDataOdds --tour atp
 .venv\Scripts\python.exe -m Backtest.PredictDay --date YYYY-MM-DD [--dry-run] [--out-dir DIR]
+.venv\Scripts\python.exe -m Dashboard.BuildBoard --date YYYY-MM-DD --out E:\AgentDocs\Tennibot\_dashboard\board_latest.json
+.\RunJob.ps1 -Name build_board -Module Dashboard.BuildBoard -ModuleArgs "--date 2026-11-14 --out E:\AgentDocs\Tennibot\_dashboard\board_latest.json"
 .venv\Scripts\python.exe -m LiveOdds.Report --date YYYY-MM-DD [--out-root DIR]
 .venv\Scripts\python.exe -m Backtest.Report --out-dir E:\AgentDocs\Tennibot\<date>_<slug> --base <date>_<slug> --findings <md>
 .venv\Scripts\python.exe -m unittest discover -s tests

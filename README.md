@@ -50,3 +50,12 @@ tennis-data.co.uk is manual-download only (its ToS forbid bots).
 ## Outputs
 
 Backtest outputs go to `data/backtest/` (gitignored). Finished reports go to `E:\AgentDocs\Tennibot\<date>_<slug>\`.
+
+## GutCall board
+
+Writes today's and tomorrow's ATP/WTA (and Challenger) Kalshi match slate to `E:\AgentDocs\Tennibot\_dashboard\` as `board_latest.json` plus a dated copy. Fair values are surface Elo only. Edges are `(prob - ask - 0.02) * 100` cents; the $0.02 is Tim's fee estimate. Unknown fields are null; local form/rest is marked stale when Sackmann results end well before the slate (currently 2026-06-01). Prop prices are attached when listed, with no prop model.
+
+    .\RunJob.ps1 -Name build_board -Module Dashboard.BuildBoard -ModuleArgs "--date 2026-11-14 --out E:\AgentDocs\Tennibot\_dashboard\board_latest.json"
+    .venv\Scripts\python.exe -m Dashboard.BuildBoard --date YYYY-MM-DD --out E:\AgentDocs\Tennibot\_dashboard\board_latest.json
+
+`--date` defaults to today ET and always includes the next day as well.
