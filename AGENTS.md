@@ -53,6 +53,9 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1          # (re)build .v
 .venv\Scripts\python.exe -m Backtest.ChallengerMaker --out-dir E:\AgentDocs\Tennibot\2026-11-13_challenger-maker
 .venv\Scripts\python.exe -m Backtest.InPlayReversion --out-dir E:\AgentDocs\Tennibot\2026-11-13_inplay-reversion --workers 7
 .\RunJob.ps1 -Name inplay_reversion -Module Backtest.InPlayReversion -ModuleArgs "--out-dir E:\AgentDocs\Tennibot\2026-11-13_inplay-reversion --workers 7"
+.venv\Scripts\python.exe -m Backtest.RunPropPricing --out-dir E:\AgentDocs\Tennibot\2026-11-14_prop-pricing
+# backtest is off unless Tim approves and you pass --run; also needs a prop-market pull that is not on disk yet
+.\RunJob.ps1 -Name prop_pricing -Module Backtest.RunPropPricing -ModuleArgs "--out-dir E:\AgentDocs\Tennibot\2026-11-14_prop-pricing --base 2026-11-14_prop-pricing --fit-year 2025 --holdout-year 2026 --run --workers 7"
 .\RunJob.ps1 -Name market_blend -Module Backtest.RunMarketBlend -ModuleArgs "--out-dir E:\AgentDocs\Tennibot\2026-11-13_market-blend"
 # optional public-API liquidity refresh (read-only): add --refresh-liquidity to ModuleArgs
 ```
