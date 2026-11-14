@@ -336,6 +336,15 @@ def Main(argv=None):
     b_path = args.out_dir / f"{args.base}_bankroll.csv"
     s_path = args.out_dir / f"{args.base}_bankroll_stats.csv"
     oos_path = args.out_dir / f"{args.base}_blend_oos.csv"
+    pred_cols = [c for c in [
+        "match_key", "tour", "level_tag", "split", "season", "date_et", "week",
+        "scheduled_start", "event_ticker", "series", "kalshi_level", "name_a", "name_b",
+        "p_model", "p_mkt", "p_blend_mkt", "blend_fitted", "y", "ask_a", "ask_b",
+        "t60_bid", "t60_ask", "t60_age_s", "t5_bid", "t5_ask", "possible_inplay",
+        "a_won", "id_a", "winner_id",
+    ] if c in blended.columns]
+    preds_path = args.out_dir / f"{args.base}_blend_preds.parquet"
+    blended[pred_cols].to_parquet(preds_path, index=False)
     gap.to_csv(gap_path, index=False)
     weights.to_csv(w_path, index=False)
     curve.to_csv(b_path, index=False)
@@ -347,7 +356,7 @@ def Main(argv=None):
     print(oos.to_string(index=False))
     print("=== bankroll stats ===")
     print(bank_stats.to_string(index=False))
-    print("wrote", gap_path, w_path, b_path, s_path, oos_path, sep="\n  ")
+    print("wrote", gap_path, w_path, b_path, s_path, oos_path, preds_path, sep="\n  ")
     return {"gap": gap, "weights": weights, "oos": oos, "bankroll": curve, "bank_stats": bank_stats,
             "blended": blended, "last_date": last_date}
 

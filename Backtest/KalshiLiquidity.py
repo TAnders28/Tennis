@@ -89,6 +89,14 @@ def Num(value):
         return np.nan
 
 
+def ValidBook(bid, ask):
+    try:
+        bid, ask = float(bid), float(ask)
+    except (TypeError, ValueError):
+        return False
+    return 0.0 < bid < ask < 1.0
+
+
 def RefreshMarkets(series_list, out_path):
     """Read-only public API pull with volume, open interest and bid/ask. Sidecar only."""
     session = PoliteSession(min_interval_s=0.2, max_retries=3, timeout_s=30)
@@ -175,20 +183,30 @@ def MarketTable(rows, milestones, spreads):
         series = row.get("series") or ""
         details = (milestones.get(event) or {}).get("details") or {}
         level = ClassifyLevel(series, details)
-        bid = Num(row.get("yes_bid_dollars"))
-        ask = Num(row.get("yes_ask_dollars"))
-        spread = (ask - bid) if np.isfinite(bid) and np.isfinite(ask) and ask > bid else np.nan
+        api_bid = Num(row.get("yes_bid_dollars"))
+        api_ask = Num(row.get("yes_ask_dollars"))
+        live_ok = ValidBook(api_bid, api_ask)
+        status = str(row.get("status") or "")
+        is_open = status in ("open", "active", "unopened")
         t60 = spreads.get(event) or {}
-        if not np.isfinite(spread) and t60:
-            spread = t60["t60_spread"]
-            bid = t60["t60_bid"]
-            ask = t60["t60_ask"]
+        t60_ok = bool(t60) and ValidBook(t60.get("t60_bid"), t60.get("t60_ask"))
+        # Settled books often sit at 0 / 1 (spread 1.00). Use a live book only for open markets;
+        # otherwise prefer the T-60 candle.
+        if is_open and live_ok:
+            bid, ask, spread, spread_basis = api_bid, api_ask, api_ask - api_bid, "live"
+        elif t60_ok:
+            bid, ask, spread, spread_basis = t60["t60_bid"], t60["t60_ask"], t60["t60_spread"], "t60"
+        elif live_ok:
+            bid, ask, spread, spread_basis = api_bid, api_ask, api_ask - api_bid, "api_other"
+        else:
+            bid, ask, spread, spread_basis = api_bid, api_ask, np.nan, "none"
         recs.append({
             "ticker": row.get("ticker"),
             "event_ticker": event,
             "series": series,
             "level": level,
-            "status": row.get("status"),
+            "status": status,
+            "is_open": is_open,
             "title": row.get("title"),
             "tournament_name": details.get("tournament_name"),
             "tour_label": details.get("tour"),
@@ -198,6 +216,9 @@ def MarketTable(rows, milestones, spreads):
             "yes_bid": bid,
             "yes_ask": ask,
             "spread": spread,
+            "spread_t60": t60["t60_spread"] if t60_ok else np.nan,
+            "spread_live": (api_ask - api_bid) if (is_open and live_ok) else np.nan,
+            "spread_basis": spread_basis,
             "close_time": row.get("close_time") or row.get("settlement_ts") or row.get("occurrence_datetime"),
         })
     return pd.DataFrame(recs)
@@ -208,26 +229,36 @@ def Summarise(markets, asof):
 
     def One(part, level):
         vol = part["volume"].dropna()
-        oi = part["open_interest"].dropna()
+        opened = part[part["is_open"]] if "is_open" in part.columns else part.iloc[0:0]
+        oi_open = opened["open_interest"].dropna() if len(opened) else pd.Series(dtype=float)
         sp = part["spread"].dropna()
+        sp_t60 = part["spread_t60"].dropna() if "spread_t60" in part.columns else sp
+        sp_live = part["spread_live"].dropna() if "spread_live" in part.columns else pd.Series(dtype=float)
         rows.append({
             "date": asof,
             "series": level,
             "level": level,
             "n_markets": int(len(part)),
             "n_events": int(part["event_ticker"].nunique()),
+            "n_open": int(len(opened)),
             "n_with_volume": int(vol.size),
-            "n_with_oi": int(oi.size),
+            "n_with_oi_open": int(oi_open.size),
             "n_with_spread": int(sp.size),
+            "n_with_spread_t60": int(sp_t60.size),
+            "n_with_spread_live": int(sp_live.size),
             "mean_volume": float(vol.mean()) if len(vol) else np.nan,
             "median_volume": float(vol.median()) if len(vol) else np.nan,
             "total_volume": float(vol.sum()) if len(vol) else np.nan,
-            "mean_oi": float(oi.mean()) if len(oi) else np.nan,
-            "median_oi": float(oi.median()) if len(oi) else np.nan,
-            "total_oi": float(oi.sum()) if len(oi) else np.nan,
+            "mean_oi_open": float(oi_open.mean()) if len(oi_open) else np.nan,
+            "median_oi_open": float(oi_open.median()) if len(oi_open) else np.nan,
+            "total_oi_open": float(oi_open.sum()) if len(oi_open) else np.nan,
             "mean_spread": float(sp.mean()) if len(sp) else np.nan,
             "median_spread": float(sp.median()) if len(sp) else np.nan,
             "p90_spread": float(sp.quantile(0.9)) if len(sp) else np.nan,
+            "mean_spread_t60": float(sp_t60.mean()) if len(sp_t60) else np.nan,
+            "median_spread_t60": float(sp_t60.median()) if len(sp_t60) else np.nan,
+            "mean_spread_live": float(sp_live.mean()) if len(sp_live) else np.nan,
+            "median_spread_live": float(sp_live.median()) if len(sp_live) else np.nan,
         })
 
     for level, part in markets.groupby("level"):
@@ -250,22 +281,24 @@ def Main(argv=None):
     parser.add_argument("--series", nargs="+", default=SERIES)
     args = parser.parse_args(argv)
     fetched_at = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    sidecar_dir = RAW_DIR / "kalshi" / "liquidity"
     if args.refresh:
-        sidecar = RAW_DIR / "kalshi" / "liquidity" / f"markets_{fetched_at[:10]}.jsonl"
+        sidecar = sidecar_dir / f"markets_{fetched_at[:10]}.jsonl"
         rows = RefreshMarkets(args.series, sidecar)
         source = f"refresh:{sidecar}"
     else:
-        rows = LoadLocalMarkets(args.series)
-        source = "local:data/raw/kalshi/markets"
+        existing = sorted(sidecar_dir.glob("markets_*.jsonl")) if sidecar_dir.exists() else []
+        if existing:
+            sidecar = existing[-1]
+            rows = LoadJsonl(sidecar)
+            source = f"sidecar:{sidecar}"
+        else:
+            rows = LoadLocalMarkets(args.series)
+            source = "local:data/raw/kalshi/markets"
     milestones = LoadMilestones()
     spreads = T60Spreads(args.series)
     markets = MarketTable(rows, milestones, spreads)
     asof = fetched_at[:10]
-    if markets["close_time"].notna().any():
-        try:
-            asof = pd.to_datetime(markets["close_time"].dropna(), utc=True, errors="coerce").max().date().isoformat()
-        except Exception:
-            pass
     summary = Summarise(markets, asof)
     summary["source"] = source
     summary["fetched_at_utc"] = fetched_at

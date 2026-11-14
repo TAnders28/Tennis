@@ -50,6 +50,7 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1          # (re)build .v
 .venv\Scripts\python.exe -m Backtest.RunServeReturnElo --out-dir E:\AgentDocs\Tennibot\2026-11-13_market-blend
 .venv\Scripts\python.exe -m Backtest.KalshiLiquidity [--refresh] --out-dir E:\AgentDocs\Tennibot\2026-11-13_market-blend
 .venv\Scripts\python.exe -m Backtest.RunMarketBlend --out-dir E:\AgentDocs\Tennibot\2026-11-13_market-blend
+.venv\Scripts\python.exe -m Backtest.ChallengerMaker --out-dir E:\AgentDocs\Tennibot\2026-11-13_challenger-maker
 .\RunJob.ps1 -Name market_blend -Module Backtest.RunMarketBlend -ModuleArgs "--out-dir E:\AgentDocs\Tennibot\2026-11-13_market-blend"
 # optional public-API liquidity refresh (read-only): add --refresh-liquidity to ModuleArgs
 ```
