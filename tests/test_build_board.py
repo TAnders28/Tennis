@@ -55,7 +55,7 @@ class BuildGameTest(unittest.TestCase):
         self.assertEqual(game["home"], "Ada")
         self.assertEqual(game["away"], "Bea")
         self.assertEqual(game["model"]["model_name"], "surface_elo")
-        self.assertTrue(game["model"]["tested"])
+        self.assertFalse(game["model"]["tested"])  # holdout existed but the model lost to Kalshi
         self.assertEqual(game["model"]["fee_basis"], "tim_est_0.02")
         self.assertEqual(game["edge_home_c"], 8.0)
         # away prob 0.40 - ask 0.52 - 0.02 = -0.14 -> -14.0 cents
@@ -99,11 +99,9 @@ class ContextTest(unittest.TestCase):
         self.assertIsNone(ctx["injuries"])
         self.assertIsNone(ctx["recent_form"])
         self.assertIsNone(ctx["rest_days"])
-        self.assertIsNotNone(ctx["head_to_head"])
-        self.assertEqual(ctx["head_to_head"]["home_wins"], 1)
-        self.assertEqual(ctx["head_to_head"]["away_wins"], 1)
-        self.assertEqual(ctx["head_to_head"]["through"], "2026-05-28")  # last meeting, not the file cutoff
-        self.assertFalse(ctx["head_to_head"]["complete"])
+        self.assertIsInstance(ctx["head_to_head"], str)
+        self.assertIn("1-1", ctx["head_to_head"])
+        self.assertIn("2026-05-28", ctx["head_to_head"])
         blob = " ".join(ctx["notes"])
         self.assertIn("stale", blob.lower())
         self.assertIn("2026-06-01", blob)
@@ -113,7 +111,7 @@ class ContextTest(unittest.TestCase):
     def test_fresh_form_is_filled(self):
         ctx = BuildContext(self.frame, 1, 2, dt.date(2026, 6, 5), self.last)
         self.assertIsNotNone(ctx["recent_form"])
-        self.assertEqual(ctx["recent_form"]["home"]["results"][-1], "W")
+        self.assertIn("WLW", ctx["recent_form"]["home"])
         self.assertEqual(ctx["rest_days"]["home"], 4)
         self.assertEqual(ctx["rest_days"]["away"], 8)
 
@@ -126,7 +124,8 @@ class ContextTest(unittest.TestCase):
         self.assertEqual(RecentForm(self.frame, 1)["results"], "WLW")  # all local matches, oldest to newest
         self.assertEqual(RestDays(self.frame, 2, dt.date(2026, 6, 1)), 4)
         h2h = HeadToHead(self.frame, 1, 2)
-        self.assertEqual(h2h["meetings"], 2)
+        self.assertIsInstance(h2h, str)
+        self.assertIn("in 2 meetings", h2h)
 
 
 class BoardAndPropsTest(unittest.TestCase):
@@ -159,11 +158,12 @@ class BoardAndPropsTest(unittest.TestCase):
         AttachProps(games, props)
         self.assertEqual(len(games[0]["props"]), 1)
         rec = games[0]["props"][0]
-        self.assertEqual(rec["kind"], "total_games")
-        self.assertEqual(rec["line"], 22.5)
+        self.assertEqual(rec["market"], "total_games")
+        self.assertEqual(rec["line"], "22.5")
         self.assertEqual(rec["yes_ask"], 0.48)
-        self.assertNotIn("home_win_prob", rec)
-        self.assertNotIn("model", rec)
+        self.assertIsNone(rec["model_prob"])
+        self.assertIsNone(rec["edge_c"])
+        self.assertFalse(rec["tested"])
         self.assertEqual(EventSuffix("KXATPMATCH-26NOV14AAABBB"), "26NOV14AAABBB")
 
     def test_write_latest_and_dated_copy(self):

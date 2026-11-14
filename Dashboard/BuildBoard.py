@@ -8,8 +8,7 @@ The $0.02 is Tim's fee estimate, not a verified exchange fee. Kalshi's verified
 taker fee 0.07*p*(1-p) is also reported in additive fields. Unknown values are
 null; nothing is invented. Recommendations only; no orders.
 
-SCHEMA.md was not present at E:\GutCall\gutcall when this was written. The shape
-follows the GutCall brief: sport, generated_at (ISO with offset), games[] with
+Follows E:\GutCall\gutcall\SCHEMA.md (read after the first draft). Extra fee fields are additive: sport, generated_at (ISO with offset), games[] with
 game_id, start_time, home (=player1), away (=player2), status, score,
 market{home_yes_ask, away_yes_ask, open_home_yes, source, as_of},
 model{home_win_prob, model_name, tested}, edge_home_c, edge_away_c,
@@ -37,13 +36,14 @@ from LiveOdds.KalshiPublic import KalshiPublic, MATCH_SERIES
 ET = ZoneInfo("America/New_York")
 DEFAULT_OUT = Path(r"E:\AgentDocs\Tennibot\_dashboard\board_latest.json")
 MODEL_NAME = "surface_elo"
-# Surface Elo has a holdout backtest in this repo (Kalshi-reality / market-blend).
-# It lost to Kalshi: blend weight on the model was ~0 and no fee-adjusted edge survived.
-MODEL_TESTED = True
+# Surface Elo has a leak-free holdout in this repo (Kalshi-reality / market-blend)
+# but it did not pass: blend weight on the model was ~0 and no fee-adjusted edge survived.
+# SCHEMA.md gates a green VALUE badge on tested=true AND edge >= 3c, so tested is False.
+MODEL_TESTED = False
 HOLDOUT_NOTE = (
     "surface Elo was holdout-tested and lost to Kalshi "
     "(market-blend model weight c~0; no validated fee-adjusted edge); "
-    "numbers are decision support, not a betting edge"
+    "tested=false so GutCall will not flag VALUE; numbers are decision support, not a betting edge"
 )
 FEE_NOTE = (
     "edge_home_c / edge_away_c use Tim's $0.02 fee estimate (tim_est_0.02, not a verified fee); "
@@ -187,14 +187,10 @@ def HeadToHead(frame, id_home, id_away):
     away_wins = int((rows["winner_id"] == id_away).sum())
     last = rows["date"].max()
     last_date = last.date().isoformat() if hasattr(last, "date") else str(last)[:10]
-    return {
-        "home_wins": home_wins,
-        "away_wins": away_wins,
-        "meetings": int(len(rows)),
-        "through": last_date,
-        "complete": False,
-        "note": "local Sackmann history only; meetings after the local cutoff are unknown",
-    }
+    return (
+        f"home {home_wins}-{away_wins} away in {int(len(rows))} meetings through {last_date} "
+        f"(local Sackmann only; later meetings unknown)"
+    )
 
 
 def BuildContext(frame, id_home, id_away, slate_date, sackmann_last, extra_notes=None):
@@ -226,10 +222,14 @@ def BuildContext(frame, id_home, id_away, slate_date, sackmann_last, extra_notes
                 f"are stale relative to slate {slate_date.isoformat()} (fresh window {FRESH_DAYS} days)"
             )
         else:
-            home_form = RecentForm(frame, id_home)
-            away_form = RecentForm(frame, id_away)
+            def FormText(block):
+                if not block:
+                    return None
+                return f"{block['results']} last {block['n']} through {block['through']}"
+            home_form = FormText(RecentForm(frame, id_home))
+            away_form = FormText(RecentForm(frame, id_away))
             if home_form or away_form:
-                recent_form = {"home": home_form, "away": away_form, "stale": False}
+                recent_form = {"home": home_form, "away": away_form}
             rest_days = {"home": RestDays(frame, id_home, slate_date), "away": RestDays(frame, id_away, slate_date)}
         head_to_head = HeadToHead(frame, id_home, id_away)
         if head_to_head is None:
@@ -261,7 +261,7 @@ def BuildGame(game_id, start_time, home, away, status, score, market, model_prob
     market.setdefault("home_yes_ask", None)
     market.setdefault("away_yes_ask", None)
     market.setdefault("open_home_yes", None)
-    market.setdefault("source", "kalshi_public")
+    market.setdefault("source", "Kalshi")
     market.setdefault("as_of", None)
     if market.get("open_home_yes") is None:
         market["open_home_yes"] = OpenPrice(market)
@@ -278,7 +278,7 @@ def BuildGame(game_id, start_time, home, away, status, score, market, model_prob
             "home_yes_ask": JsonSafe(market.get("home_yes_ask")),
             "away_yes_ask": JsonSafe(market.get("away_yes_ask")),
             "open_home_yes": JsonSafe(market.get("open_home_yes")),
-            "source": market.get("source") or "kalshi_public",
+            "source": market.get("source") or "Kalshi",
             "as_of": market.get("as_of"),
         },
         "model": {
@@ -286,7 +286,7 @@ def BuildGame(game_id, start_time, home, away, status, score, market, model_prob
             "model_name": model_name,
             "tested": bool(tested),
             "fee_basis": "tim_est_0.02",
-            "holdout_note": HOLDOUT_NOTE if tested else "this model has no holdout backtest in the repo",
+            "holdout_note": HOLDOUT_NOTE if model_name == MODEL_NAME else ("this model has no holdout backtest in the repo" if not tested else None),
         },
         "edge_home_c": EdgeCents(p_home, market.get("home_yes_ask"), fee=fee),
         "edge_away_c": EdgeCents(p_away, market.get("away_yes_ask"), fee=fee),
@@ -318,21 +318,32 @@ def PropRecord(market):
     })
     yes_ask = market.get("yes_ask")
     yes_bid = market.get("yes_bid")
+    line = parsed.get("line")
+    if line is None:
+        line_s = parsed.get("side_label") or None
+    elif isinstance(line, (int, float)) and float(line).is_integer():
+        line_s = str(int(line))
+    else:
+        line_s = str(line)
     return Clean({
+        # SCHEMA.md keys; model_prob/edge_c stay null (prices only, no prop model)
+        "player": parsed.get("player") or market.get("yes_sub_title") or market.get("player"),
+        "market": parsed.get("kind") or parsed.get("side_label") or market.get("series"),
+        "line": line_s,
+        "yes_ask": JsonSafe(yes_ask),
+        "model_prob": None,
+        "edge_c": None,
+        "tested": False,
         "ticker": market.get("ticker"),
         "event_ticker": market.get("event_ticker"),
         "series": market.get("series"),
         "kind": parsed.get("kind"),
         "title": market.get("title"),
         "yes_sub_title": market.get("yes_sub_title") or market.get("player"),
-        "line": parsed.get("line"),
         "side_label": parsed.get("side_label"),
-        "player": parsed.get("player"),
         "yes_bid": JsonSafe(yes_bid),
-        "yes_ask": JsonSafe(yes_ask),
         "as_of": market.get("fetched_at"),
-        "source": "kalshi_public",
-        # prices only; no model probability for props
+        "source": "Kalshi",
     })
 
 
@@ -380,14 +391,15 @@ def GameStatus(start, market_status, now=None):
     if start is not None and start.tzinfo is None:
         start = start.replace(tzinfo=dt.timezone.utc)
     status = (market_status or "").lower() or None
-    if status in ("finalized", "settled", "determined"):
+    if status in ("finalized", "settled", "determined", "final"):
         return "final"
     if start is not None and start > now:
         return "scheduled"
-    if status:
-        return status
+    # SCHEMA.md allows only scheduled|live|final; map in-progress Kalshi states to live.
     if start is not None and start <= now:
-        return "open"
+        return "live"
+    if status in ("active", "open", "live"):
+        return "live"
     return None
 
 
@@ -442,7 +454,7 @@ def ScoreEvent(event_ticker, event, states, context_frames, date_from, date_to):
         "home_yes_ask": home_m.get("yes_ask"),
         "away_yes_ask": away_m.get("yes_ask"),
         "open_home_yes": OpenPrice(home_m),
-        "source": "kalshi_public",
+        "source": "Kalshi",
         "as_of": as_of,
     }
     status = GameStatus(start, home_m.get("status") or event.get("status"))
@@ -491,14 +503,22 @@ def PropSeriesList():
     return out
 
 
+def WriteAtomic(path, text):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(path)
+
+
 def WriteBoard(payload, out_path, date_tag):
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     text = json.dumps(payload, indent=2, ensure_ascii=False) + "\n"
-    out_path.write_text(text, encoding="utf-8")
+    WriteAtomic(out_path, text)
     dated = out_path.with_name(f"board_{date_tag}.json")
     if dated.resolve() != out_path.resolve():
-        dated.write_text(text, encoding="utf-8")
+        WriteAtomic(dated, text)
     return out_path, dated
 
 
