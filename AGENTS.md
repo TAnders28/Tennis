@@ -74,7 +74,7 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1          # (re)build .v
 - Live: action is **PASS** unless the in-play model is validated on holdout AND the quote is qualified AND price/state are fresh (<= 45 s) AND edge > 0. Live score: Kalshi public live_data endpoint (LiveOdds/LiveScore.py; no source timestamp, so freshness is judged on fetch time). The Markov model is validated on the Grand Slam holdout only, so non-slam levels PASS with 'live model unvalidated at this level'.
 - Kalshi quotes carry no source timestamp: log `fetched_at` (our clock, UTC) and `price_time = null`. Robinhood-vs-Kalshi price differences are unmeasured.
 - Prediction log `data/predictions/<season>.jsonl` is append-only; rows are written only before the scheduled start; `--dry-run` never appends.
-- Do not place orders or wagers from this repo. No cloud agents. No GitHub remote yet; **push only when Tim explicitly says OK.** Local commits are fine.
+- Do not place orders or wagers from this repo. No cloud agents. Remote: origin git@github.com:TAnders28/Tennis.git. **Push only with Tim's explicit OK** (standing OK through 2026-12-19: fast-forward main after tests pass, never force-push). Local commits are fine.
 - Data licences: Sackmann data CC BY-NC-SA 4.0 (non-commercial, attribute, share-alike). tennis-data.co.uk: private use only, manual download.
 
 ## Daily check reporting (Tim, 2026-11-19)
