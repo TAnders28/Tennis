@@ -8,7 +8,7 @@ The $0.02 is Tim's fee estimate, not a verified exchange fee. Kalshi's verified
 taker fee 0.07*p*(1-p) is also reported in additive fields. Unknown values are
 null; nothing is invented. Recommendations only; no orders.
 
-Follows E:\GutCall\gutcall\SCHEMA.md (read after the first draft). Extra fee fields are additive: sport, generated_at (ISO with offset), games[] with
+Follows E:\AgentWorkspaces\GutCall\gutcall\SCHEMA.md (read after the first draft). Extra fee fields are additive: sport, generated_at (ISO with offset), games[] with
 game_id, start_time, home (=player1), away (=player2), status, score,
 market{home_yes_ask, away_yes_ask, open_home_yes, source, as_of},
 model{home_win_prob, model_name, tested}, edge_home_c, edge_away_c,

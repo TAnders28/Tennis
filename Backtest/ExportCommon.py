@@ -189,7 +189,7 @@ CAVEATS = [
 def WriteMarkdown(meta, cal_dir, bank_dir, date):
     head = meta["head"]
     cal = [f"# Tennis calibration ({date}), common format (sports-ops plan section 5a)", "",
-           f"Repo E:\\Tennis\\tennis at HEAD `{head}`. Model `{meta['model_version']}` = frozen surface-Elo + serve/return blend (`tennis_blend_v1`). Parameters were frozen 2026-11-13 from tune 2010-2019 and validation 2020-2022 only; the holdout and forward seasons were never used in any search.",
+           f"Repo E:\\AgentWorkspaces\\Tennis\\tennis at HEAD `{head}`. Model `{meta['model_version']}` = frozen surface-Elo + serve/return blend (`tennis_blend_v1`). Parameters were frozen 2026-11-13 from tune 2010-2019 and validation 2020-2022 only; the holdout and forward seasons were never used in any search.",
            "Leak test: `tests/test_no_lookahead.py` passes at this HEAD (each match is predicted from the state before its date/round group).",
            "Splits: `holdout` = season 2025 (Jun-Dec, the Kalshi era); `forward` = season 2026 (Jan-Jun 2026). Fixed side player_a = the alphabetically first surname (last name token), never the winner.",
            "Market = Kalshi T-60 mid of player_a's book (both sides from one book, so de-vigged by construction), on exactly the same matches as the model.",

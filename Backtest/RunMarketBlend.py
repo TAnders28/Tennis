@@ -114,7 +114,7 @@ def WriteReport(out_dir, base, refresh_liquidity, ran):
 
     md = f"""# Tennis market blend vs Kalshi (2026-11-13)
 
-Author: Tennibot. Written {written} (America/New_York). Repo `E:\\Tennis\\tennis` at HEAD `{GitHead()}`. Model `{MODEL_VERSION}`.
+Author: Tennibot. Written {written} (America/New_York). Repo `E:\\AgentWorkspaces\\Tennis\\tennis` at HEAD `{GitHead()}`. Model `{MODEL_VERSION}`.
 Recommendations only. Simulation; no orders. Default remains **PASS** unless the numbers below clear the gate.
 
 ## Headline

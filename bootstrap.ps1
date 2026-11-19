@@ -1,5 +1,5 @@
 # bootstrap.ps1 - (re)create the repo venv from requirements.lock.txt, then smoke test.
-# Usage (from E:\Tennis\tennis):  powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1
+# Usage (from E:\AgentWorkspaces\Tennis\tennis):  powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1
 #   -Unlocked : install requirements.txt instead and rewrite requirements.lock.txt (only when changing deps)
 # Does not request admin / UAC. Everything stays under this folder.
 
