@@ -76,3 +76,8 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1          # (re)build .v
 - Prediction log `data/predictions/<season>.jsonl` is append-only; rows are written only before the scheduled start; `--dry-run` never appends.
 - Do not place orders or wagers from this repo. No cloud agents. No GitHub remote yet; **push only when Tim explicitly says OK.** Local commits are fine.
 - Data licences: Sackmann data CC BY-NC-SA 4.0 (non-commercial, attribute, share-alike). tennis-data.co.uk: private use only, manual download.
+
+## Daily check reporting (Tim, 2026-11-19)
+- Scheduled daily checks (the scheduled daily check) stay quiet unless an edge clears the fee-adjusted threshold.
+- Log every run, including no-edge days (NO_GAMES, PASS), to `E:\AgentDocs\Tennibot\daily-check\<YYYY-MM-DD>.md` (and the GutCall board if this repo writes one). Send Tim nothing on a no-edge day.
+- Message Tim only for (a) a play that clears the threshold, with price, price time, edge and fee basis, or (b) a failed check. Never report a check as run or done until its output file exists. Direct questions from Tim are answered as usual.
