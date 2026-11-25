@@ -1,6 +1,6 @@
 # AGENTS.md - tennis
 
-Shared conventions for agents working in this repo (owner: Tennibot). Keep changes small and local unless Tim says otherwise.
+Shared conventions for agents working in this repo (owner: Sportsbot). Keep changes small and local unless Tim says otherwise.
 
 ## Layout
 
@@ -22,7 +22,7 @@ Shared conventions for agents working in this repo (owner: Tennibot). Keep chang
   - `MarketBlend.py`, `RunMarketBlend.py` - log-loss gap vs Kalshi, walk-forward market blend, $10k bankrolls off p_blend; writes `E:\AgentDocs\Tennibot\<date>_market-blend\`
   - `ServeReturnElo.py`, `RunServeReturnElo.py` - prototype Elo-style serve/return ratings (defaults not tuned on holdout)
   - `KalshiLiquidity.py` - tour vs Challenger / WTA 125 liquidity survey (local files by default; `--refresh` is a read-only public API pull)
-- `LiveOdds/` - `KalshiPublic.py` (read-only client), `Report.py` (live JSONL contract for Degen). No orders.
+- `LiveOdds/` - `KalshiPublic.py` (read-only client), `Report.py` (live JSONL contract, read by Sportsbot on game nights). No orders.
 - `Dashboard/` - `BuildBoard.py` writes the GutCall tennis board (`E:\AgentDocs\Tennibot\_dashboard\board_latest.json` plus a dated copy) from the Kalshi public slate and surface Elo.
 - `tests/` - unittest (leak tests, Markov, odds, names)
 - `data/` - local only (gitignored): raw pulls, processed parquet, backtest outputs, prediction logs
