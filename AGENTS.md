@@ -22,6 +22,7 @@ Shared conventions for agents working in this repo (owner: Sportsbot). Keep chan
   - `MarketBlend.py`, `RunMarketBlend.py` - log-loss gap vs Kalshi, walk-forward market blend, $10k bankrolls off p_blend; writes `E:\AgentDocs\Tennibot\<date>_market-blend\`
   - `ServeReturnElo.py`, `RunServeReturnElo.py` - prototype Elo-style serve/return ratings (defaults not tuned on holdout)
   - `KalshiLiquidity.py` - tour vs Challenger / WTA 125 liquidity survey (local files by default; `--refresh` is a read-only public API pull)
+- `Sim/` - research (2026-11-26, tested:false): `MatchSim` (vectorised match Monte Carlo from serve-point probabilities, exact vectorised match probability, optional match-level form shock), `ValidateTennis` / `ReportTennis` (2020-22 tune, 2023-25 holdout, 2026 forward verdicts, near-miss bias, 90c+ favourites, stress), `Power` (bets/months for a planted edge, day-block vs fair-market bands, selection luck). The form version (gap x1.5, sigma 0.05) passed for best-of-3 only; never for pricing. Synthetic matches are never real outcomes or proof of edge
 - `LiveOdds/` - `KalshiPublic.py` (read-only client), `Report.py` (live JSONL contract, read by Sportsbot on game nights). No orders.
 - `Dashboard/` - `BuildBoard.py` writes the GutCall tennis board (`E:\AgentDocs\Tennibot\_dashboard\board_latest.json` plus a dated copy) from the Kalshi public slate and surface Elo.
 - `tests/` - unittest (leak tests, Markov, odds, names)
