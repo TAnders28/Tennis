@@ -82,3 +82,5 @@ powershell -ExecutionPolicy Bypass -File .\bootstrap.ps1          # (re)build .v
 - Scheduled daily checks (the scheduled daily check) stay quiet unless an edge clears the fee-adjusted threshold.
 - Log every run, including no-edge days (NO_GAMES, PASS), to `E:\AgentDocs\Tennibot\daily-check\<YYYY-MM-DD>.md` (and the GutCall board if this repo writes one). Send Tim nothing on a no-edge day.
 - Message Tim only for (a) a play that clears the threshold, with price, price time, edge and fee basis, or (b) a failed check. Never report a check as run or done until its output file exists. Direct questions from Tim are answered as usual.
+
+- `Archetypes/` - research (2026-11-27, tested:false): `ServeReturn --tour atp|wta --out <dir> [--link logit]` serve-style x return-style archetypes from Sackmann match stats (PCA->GMM fit 2017-19, prior-season labels, fit 2019-23, holdout 2024-25, BH-FDR). Null on the log-odds scale; linear ace "effects" are scale artifacts. Needs scikit-learn (not in this venv): run with E:\AgentWorkspaces\Football\football\.venv\Scripts\python.exe -m from this repo root. Tests: tests/test_archetypes_serve_return.py.
